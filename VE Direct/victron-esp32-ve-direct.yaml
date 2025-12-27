@@ -1,0 +1,229 @@
+substitutions:
+  name: victron-esp32-ve-direct
+  device_description: "Victron MPPT 150/45 via VE.Direct Serial v1.2"
+  friendly_name: "Victron ESP32 VE Direct"
+  version: "1.2"
+
+esphome:
+  name: ${name}
+  comment: ${device_description}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  baud_rate: 0  # CRITICAL: Disable UART logging to free up UART for VE.Direct
+  level: DEBUG
+
+# API for Home Assistant
+api:
+  encryption:
+    key: "ONO5iD72Y1IU9ArplCJuKsozX48v8aVZmlEW0hTq6Zg="
+
+# OTA updates
+ota:
+  - platform: esphome
+    password: "01082f94b369f8ad6d1ce610941b57a8"
+  - platform: web_server
+
+# Web server
+web_server:
+  port: 80
+
+# WiFi configuration
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+# ============================================
+# VE.Direct UART Configuration
+# ============================================
+uart:
+  id: uart_0
+  tx_pin: GPIO17  # Not used - VE.Direct is read-only
+  rx_pin: GPIO16  # ESP32 RX <- VE.Direct TX
+  baud_rate: 19200
+  rx_buffer_size: 256
+
+# ============================================
+# Victron Component
+# ============================================
+external_components:
+  - source: github://KinDR007/VictronMPPT-ESPHOME@main
+    refresh: 0s
+
+victron:
+  id: victron0
+  uart_id: uart_0
+
+# ============================================
+# SENSORES NUMÉRICOS
+# ============================================
+sensor:
+  - platform: victron
+    victron_id: victron0
+    
+    # Batería
+    battery_voltage:
+      name: "${friendly_name} Battery Voltage"
+      id: battery_voltage
+    
+    battery_current:
+      name: "${friendly_name} Battery Current"
+      id: battery_current
+    
+    # Paneles (valores REALES)
+    panel_voltage:
+      name: "${friendly_name} Panel Voltage"
+      id: panel_voltage
+    
+    panel_power:
+      name: "${friendly_name} Panel Power"
+      id: panel_power
+    
+    # Producción de energía
+    yield_today:
+      name: "${friendly_name} Yield Today"
+      id: yield_today
+    
+    yield_yesterday:
+      name: "${friendly_name} Yield Yesterday"
+      id: yield_yesterday
+    
+    yield_total:
+      name: "${friendly_name} Yield Total"
+      id: yield_total
+    
+    # Potencia máxima
+    max_power_today:
+      name: "${friendly_name} Max Power Today"
+      id: max_power_today
+    
+    max_power_yesterday:
+      name: "${friendly_name} Max Power Yesterday"
+      id: max_power_yesterday
+    
+    # Días
+    day_number:
+      name: "${friendly_name} Day Number"
+      id: day_number
+    
+    # Corriente de carga (comentado para MPPT 150/45)
+    # load_current:
+    #   name: "${friendly_name} Load Current"
+  
+  # Corriente de paneles (calculada)
+  - platform: template
+    name: "${friendly_name} Panel Current"
+    id: panel_current
+    device_class: current
+    state_class: measurement
+    unit_of_measurement: "A"
+    accuracy_decimals: 2
+    lambda: |-
+      if (id(panel_voltage).has_state() && id(panel_voltage).state > 0 && 
+          id(panel_power).has_state() && id(panel_power).state > 0) {
+        return id(panel_power).state / id(panel_voltage).state;
+      }
+      return 0.0;
+    update_interval: 10s
+  
+  # WiFi Signal
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal"
+    update_interval: 60s
+  
+  # Uptime en segundos (oculto)
+  - platform: uptime
+    id: uptime_seconds
+    internal: true
+    update_interval: 60s
+
+# ============================================
+# SENSORES BINARIOS
+# ============================================
+binary_sensor:
+  # Estado online/offline
+  - platform: status
+    name: "${friendly_name} Status"
+  
+  # Load Output (comentado para MPPT 150/45)
+  # - platform: victron
+  #   victron_id: victron0
+  #   load_state:
+  #     name: "${friendly_name} Load Output"
+
+# ============================================
+# SENSORES DE TEXTO
+# ============================================
+text_sensor:
+  - platform: victron
+    victron_id: victron0
+    
+    # Estado de carga (BULK, ABSORPTION, FLOAT)
+    charging_mode:
+      name: "${friendly_name} Charging Mode"
+      id: charging_mode
+    
+    # Código de error
+    error:
+      name: "${friendly_name} Error"
+      id: error
+    
+    # Modo de tracking
+    tracking_mode:
+      name: "${friendly_name} Tracking Mode"
+      id: tracking_mode
+    
+    # Firmware version
+    firmware_version:
+      name: "${friendly_name} Firmware Version"
+      id: firmware_version
+    
+    # Serial Number
+    serial_number:
+      name: "${friendly_name} Serial Number"
+      id: serial_number
+  
+  # Uptime formateado
+  - platform: template
+    name: "${friendly_name} Uptime"
+    icon: mdi:clock-start
+    update_interval: 60s
+    lambda: |-
+      int seconds = (int)id(uptime_seconds).state;
+      int days = seconds / 86400;
+      int hours = (seconds % 86400) / 3600;
+      int minutes = (seconds % 3600) / 60;
+      int secs = seconds % 60;
+      
+      std::string result = "";
+      if (days > 0) result += to_string(days) + "d ";
+      if (hours > 0) result += to_string(hours) + "h ";
+      if (minutes > 0) result += to_string(minutes) + "m ";
+      result += to_string(secs) + "s";
+      
+      return result;
+  
+  # Info de WiFi
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP Address"
+    ssid:
+      name: "${friendly_name} WiFi SSID"
+    mac_address:
+      name: "${friendly_name} MAC Address"
+  
+  # Versión de ESPHome
+  - platform: version
+    name: "${friendly_name} ESPHome Version"
+  
+  # Versión del config
+  - platform: template
+    name: "${friendly_name} Config Version"
+    lambda: |-
+      return {"${version}"};

@@ -1,0 +1,208 @@
+substitutions:
+  name: maria-victron-ble
+  device_description: "Monitor Victron MPPT 150/45 via BLE v1.2"
+  smart_solar_mac_address: CD:AC:27:2C:7D:41
+  smart_solar_encryption_key: 64ca1f66c38f5d108e03b8b1ba4482d1
+  version: "1.2"
+  friendly_name: "Victron ESP32 BLE  MSOIR"
+  # Ajusta según voltaje de tus paneles (típico 18-22V para 12V, 36-44V para 24V)
+  estimated_panel_voltage: "80.0"  # Ajustar según tu sistema
+
+esphome:
+  name: ${name}
+  comment: ${device_description}
+  friendly_name: ${friendly_name}
+
+external_components:
+  - source: github://Fabian-Schmidt/esphome-victron_ble
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+api:
+  encryption:
+    key: "BOJmh2CvufeI6gDzyNDSAcKF5y2C9WUhns4c7dhmS28="
+
+ota:
+  - platform: esphome
+    password: "7aee3634cdc8397b14fadde6d2880c15"
+  - platform: web_server
+
+wifi:
+  ssid: MSOIR
+  password: 1946ABC417
+
+web_server:
+  port: 80
+
+logger:
+  level: INFO
+  
+esp32_ble_tracker:
+
+victron_ble:
+  - id: MySmartSolar
+    mac_address: ${smart_solar_mac_address}
+    bindkey: ${smart_solar_encryption_key}
+
+sensor:
+  # ============================================
+  # BATERÍA
+  # ============================================
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron Battery Voltage"
+    type: BATTERY_VOLTAGE
+    device_class: voltage
+    state_class: measurement
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron Battery Current"
+    type: BATTERY_CURRENT
+    device_class: current
+    state_class: measurement
+  
+  # ============================================
+  # PANELES SOLARES
+  # ============================================
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron PV Power"
+    id: pv_power
+    type: PV_POWER
+    device_class: power
+    state_class: measurement
+    unit_of_measurement: "W"
+  
+  # PV Voltage ESTIMADO (valor configurado)
+  - platform: template
+    name: "Victron PV Voltage (Estimated)"
+    unit_of_measurement: "V"
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 1
+    lambda: |-
+      if (id(pv_power).state > 1.0) {
+        return ${estimated_panel_voltage};
+      } else {
+        return 0.0;
+      }
+    update_interval: 10s
+  
+  # PV Current ESTIMADO (calculado)
+  - platform: template
+    name: "Victron PV Current (Estimated)"
+    id: pv_current_estimated
+    unit_of_measurement: "A"
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 2
+    lambda: |-
+      float panel_voltage = ${estimated_panel_voltage};
+      if (id(pv_power).state > 1.0) {
+        return id(pv_power).state / panel_voltage;
+      } else {
+        return 0.0;
+      }
+    update_interval: 10s
+  
+  # ============================================
+  # PRODUCCIÓN DE ENERGÍA
+  # ============================================
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron Yield Today"
+    type: YIELD_TODAY
+    device_class: energy
+    state_class: total_increasing
+  
+  - platform: integration
+    name: "Victron Energy Produced"
+    sensor: pv_power
+    unit_of_measurement: "kWh"
+    time_unit: h 
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+  
+  # ============================================
+  # DIAGNÓSTICO
+  # ============================================
+  - platform: wifi_signal
+    name: "Victron WiFi Signal"
+    update_interval: 60s
+  
+  # Uptime en segundos (para usar en el text_sensor)
+  - platform: uptime
+    id: uptime_seconds
+    internal: true  # Oculto en Home Assistant
+    update_interval: 60s
+
+binary_sensor:
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT Fault"
+    type: DEVICE_STATE_FAULT
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT Error"
+    type: CHARGER_ERROR
+  
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT in BULK"
+    type: DEVICE_STATE_BULK
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT in ABSORPTION"
+    type: DEVICE_STATE_ABSORPTION
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT in FLOAT"
+    id: mppt_in_float
+    type: DEVICE_STATE_FLOAT
+
+text_sensor:
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT State"
+    type: DEVICE_STATE
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT Error Reason"
+    type: CHARGER_ERROR
+  
+  - platform: wifi_info
+    ip_address:
+      name: "Victron ESP32 IP"
+    ssid:
+      name: "Victron WiFi SSID"
+  
+  # ============================================
+  # UPTIME FORMATEADO: Xd Xh Xm Xs
+  # ============================================
+  - platform: template
+    name: "Victron Uptime"
+    icon: mdi:clock-start
+    update_interval: 60s
+    lambda: |-
+      int seconds = (int)id(uptime_seconds).state;
+      int days = seconds / 86400;
+      int hours = (seconds % 86400) / 3600;
+      int minutes = (seconds % 3600) / 60;
+      int secs = seconds % 60;
+      
+      std::string result = "";
+      if (days > 0) result += to_string(days) + "d ";
+      if (hours > 0) result += to_string(hours) + "h ";
+      if (minutes > 0) result += to_string(minutes) + "m ";
+      result += to_string(secs) + "s";
+      
+      return result;
