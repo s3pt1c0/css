@@ -1,0 +1,252 @@
+substitutions:
+  name: victron-esp32-ve-direct-msoir
+  device_description: "Victron MPPT 150/45 via VE.Direct Serial MSOIR v1.2.1"
+  friendly_name: "Victron ESP32 VE Direct MSOIR"
+  version: "1.2.1"
+
+esphome:
+  name: ${name}
+  comment: ${device_description}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 0
+  level: DEBUG
+
+api:
+  encryption:
+    key: "BOJmh2CvufeI6gDzyNDSAcKF5y2C9WUhns4c7dhmS28="
+
+ota:
+  - platform: esphome
+    password: "7aee3634cdc8397b14fadde6d2880c15"
+  - platform: web_server
+
+web_server:
+  port: 80
+
+wifi:
+  ssid: MSOIR
+  password: 1946ABC417
+
+# ============================================
+# NTP TIME SYNC - time.google.com AST -4
+# ============================================
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: AST4
+    servers:
+      - time.google.com
+      - pool.ntp.org
+      - time.cloudflare.com
+    update_interval: 4h
+    on_time_sync:
+      then:
+        - logger.log: "Time synchronized with NTP server"
+
+# ============================================
+# VE.Direct UART Configuration
+# ============================================
+uart:
+  id: uart_0
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 19200
+  rx_buffer_size: 256
+
+external_components:
+  - source: github://KinDR007/VictronMPPT-ESPHOME@main
+    refresh: 0s
+
+victron:
+  id: victron0
+  uart_id: uart_0
+
+# ============================================
+# SENSORES NUMÉRICOS - ORDEN LÓGICO
+# ============================================
+sensor:
+  # ============================================
+  # BATERÍA
+  # ============================================
+  - platform: victron
+    victron_id: victron0
+    battery_voltage:
+      name: "${friendly_name} Battery Voltage"
+      id: battery_voltage
+    battery_current:
+      name: "${friendly_name} Battery Current"
+      id: battery_current
+  
+  # ============================================
+  # PANELES SOLARES (PV)
+  # ============================================
+  - platform: victron
+    victron_id: victron0
+    panel_voltage:
+      name: "${friendly_name} Panel Voltage"
+      id: panel_voltage
+    panel_power:
+      name: "${friendly_name} Panel Power"
+      id: panel_power
+  
+  - platform: template
+    name: "${friendly_name} Panel Current"
+    id: panel_current
+    device_class: current
+    state_class: measurement
+    unit_of_measurement: "A"
+    accuracy_decimals: 2
+    lambda: |-
+      if (id(panel_voltage).has_state() && id(panel_voltage).state > 0 && 
+          id(panel_power).has_state() && id(panel_power).state > 0) {
+        return id(panel_power).state / id(panel_voltage).state;
+      }
+      return 0.0;
+    update_interval: 10s
+  
+  # ============================================
+  # PRODUCCIÓN DE ENERGÍA
+  # ============================================
+  - platform: victron
+    victron_id: victron0
+    yield_today:
+      name: "${friendly_name} Yield Today"
+      id: yield_today
+    yield_yesterday:
+      name: "${friendly_name} Yield Yesterday"
+      id: yield_yesterday
+    yield_total:
+      name: "${friendly_name} Yield Total"
+      id: yield_total
+    max_power_today:
+      name: "${friendly_name} Max Power Today"
+      id: max_power_today
+    max_power_yesterday:
+      name: "${friendly_name} Max Power Yesterday"
+      id: max_power_yesterday
+    day_number:
+      name: "${friendly_name} Day Number"
+      id: day_number
+  
+  # ============================================
+  # INFORMACIÓN DEL ESP32 (AL FINAL)
+  # ============================================
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal"
+    update_interval: 60s
+  
+  - platform: uptime
+    id: uptime_seconds
+    internal: true
+    update_interval: 60s
+
+# ============================================
+# SENSORES BINARIOS
+# ============================================
+binary_sensor:
+  - platform: status
+    name: "${friendly_name} Status"
+
+# ============================================
+# SENSORES DE TEXTO - ORDEN LÓGICO
+# ============================================
+text_sensor:
+  # ============================================
+  # ESTADOS VICTRON MPPT
+  # ============================================
+  - platform: victron
+    victron_id: victron0
+    charging_mode:
+      name: "${friendly_name} Charging Mode"
+      id: charging_mode
+    error:
+      name: "${friendly_name} Error"
+      id: error
+    tracking_mode:
+      name: "${friendly_name} Tracking Mode"
+      id: tracking_mode
+    firmware_version:
+      name: "${friendly_name} Firmware Version"
+      id: firmware_version
+    serial_number:
+      name: "${friendly_name} Serial Number"
+      id: serial_number
+  
+  # ============================================
+  # INFORMACIÓN DEL ESP32 (AL FINAL)
+  # ============================================
+  - platform: template
+    name: "${friendly_name} Uptime"
+    icon: mdi:clock-start
+    update_interval: 60s
+    lambda: |-
+      int seconds = (int)id(uptime_seconds).state;
+      int days = seconds / 86400;
+      int hours = (seconds % 86400) / 3600;
+      int minutes = (seconds % 3600) / 60;
+      int secs = seconds % 60;
+      
+      std::string result = "";
+      if (days > 0) result += to_string(days) + "d ";
+      if (hours > 0) result += to_string(hours) + "h ";
+      if (minutes > 0) result += to_string(minutes) + "m ";
+      result += to_string(secs) + "s";
+      
+      return result;
+  
+  - platform: template
+    name: "${friendly_name} ESP32 Date"
+    icon: mdi:calendar-clock
+    update_interval: 60s
+    lambda: |-
+      auto time = id(sntp_time).now();
+      if (!time.is_valid()) {
+        return {"Syncing..."};
+      }
+      
+      int month = time.month;
+      int day = time.day_of_month;
+      int year = time.year;
+      int hour = time.hour;
+      int minute = time.minute;
+      
+      std::string am_pm = "am";
+      int hour_12 = hour;
+      
+      if (hour == 0) {
+        hour_12 = 12;
+      } else if (hour == 12) {
+        am_pm = "pm";
+      } else if (hour > 12) {
+        hour_12 = hour - 12;
+        am_pm = "pm";
+      }
+      
+      char buffer[30];
+      snprintf(buffer, sizeof(buffer), "%d/%d/%d %d:%02d %s", 
+               month, day, year, hour_12, minute, am_pm.c_str());
+      
+      return {buffer};
+  
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP Address"
+    ssid:
+      name: "${friendly_name} WiFi SSID"
+    mac_address:
+      name: "${friendly_name} MAC Address"
+  
+  - platform: version
+    name: "${friendly_name} ESPHome Version"
+  
+  - platform: template
+    name: "${friendly_name} Config Version"
+    lambda: |-
+      return {"${version}"};

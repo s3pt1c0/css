@@ -1,0 +1,42 @@
+substitutions:
+  # Set the MAC address of your Victron device here
+  mac_address: 60:A4:23:91:8F:55
+
+esphome:
+  name: "victron-ble-min"
+
+external_components:
+  - source: github://Fabian-Schmidt/esphome-victron_ble
+
+esp32:
+  board: esp32dev
+
+esp32_ble:
+  io_capability: keyboard_only
+
+ble_client:
+  - mac_address: ${mac_address}
+    id: victron_smart_shunt_ble_client_id
+    on_passkey_request:
+      then:
+        - ble_client.passkey_reply:
+            id: victron_smart_shunt_ble_client_id
+            passkey: !secret ble_passkey
+
+sensor:
+  - platform: victron_ble_connect
+    ble_client_id: victron_smart_shunt_ble_client_id
+    state_of_charge:
+      name: "State of Charge"
+    voltage:
+      name: "Voltage"
+    power:
+      name: "Power Consumption"
+    current:
+      name: "Current"
+    ah:
+      name: "Consumed Ah"
+    starter_battery_voltage:
+      name: "Starter Battery Voltage"
+    remaining_time:
+      name: "Remaining Time"

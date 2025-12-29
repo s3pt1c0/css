@@ -1,0 +1,245 @@
+substitutions:
+  name: victron-ble
+  device_description: "Monitor a Victron MPPT Charge Controller via BLE v1.2.1"
+  smart_solar_mac_address: cd:ac:27:2c:7d:41
+  friendly_name: "Victron ESP32 BLE"
+  version: "1.2.1"
+  smart_solar_encryption_key: 64ca1f66c38f5d108e03b8b1ba4482d1
+
+esphome:
+  name: ${name}
+  comment: ${device_description}
+  friendly_name: ${friendly_name}
+
+external_components:
+  - source: github://Fabian-Schmidt/esphome-victron_ble
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+api:
+  encryption:
+    key: "fXi+MbBEylghmaKLe/MAKhXLaZmRG06Ct0HPWY++ZpI="
+
+ota:
+  - platform: esphome
+    password: "8a6bce13393a2c29616b290a0d020908"
+  - platform: web_server
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+web_server:
+  port: 80
+  
+logger:
+  level: INFO
+
+# ============================================
+# NTP TIME SYNC - time.google.com AST -4
+# ============================================
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: AST4
+    servers:
+      - time.google.com
+      - pool.ntp.org
+      - time.cloudflare.com
+    update_interval: 4h
+    on_time_sync:
+      then:
+        - logger.log: "Time synchronized with NTP server"
+  
+esp32_ble_tracker:
+
+victron_ble:
+  - id: MySmartSolar
+    mac_address: ${smart_solar_mac_address}
+    bindkey: ${smart_solar_encryption_key}
+
+# ============================================
+# SENSORES NUMÉRICOS - ORDEN LÓGICO
+# ============================================
+sensor:
+  # ============================================
+  # BATERÍA
+  # ============================================
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron Battery Voltage"
+    type: BATTERY_VOLTAGE
+    device_class: voltage
+    state_class: measurement
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron Battery Current"
+    type: BATTERY_CURRENT
+    device_class: current
+    state_class: measurement
+  
+  # ============================================
+  # PANELES SOLARES (PV)
+  # ============================================
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron PV Power"
+    id: pv_power
+    type: PV_POWER
+    device_class: power
+    state_class: measurement
+    unit_of_measurement: "W"
+  
+  # ============================================
+  # PRODUCCIÓN DE ENERGÍA
+  # ============================================
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron Yield Today"
+    type: YIELD_TODAY
+    device_class: energy
+    state_class: total_increasing
+  
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron Load Current"
+    type: LOAD_CURRENT
+  
+  - platform: integration
+    name: "Victron Energy Produced"
+    sensor: pv_power
+    unit_of_measurement: "kWh"
+    time_unit: h 
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+  
+  # ============================================
+  # INFORMACIÓN DEL ESP32 (AL FINAL)
+  # ============================================
+  - platform: wifi_signal
+    name: "ESP32 WiFi Signal"
+    update_interval: 60s
+  
+  - platform: uptime
+    id: uptime_seconds
+    internal: true
+    update_interval: 60s
+
+# ============================================
+# SENSORES BINARIOS - ESTADOS MPPT
+# ============================================
+binary_sensor:
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT Fault"
+    type: DEVICE_STATE_FAULT
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT Error"
+    type: CHARGER_ERROR
+  
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT in BULK"
+    type: DEVICE_STATE_BULK
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT in ABSORPTION"
+    type: DEVICE_STATE_ABSORPTION
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT in FLOAT"
+    id: mppt_in_float
+    type: DEVICE_STATE_FLOAT
+
+# ============================================
+# SENSORES DE TEXTO - ORDEN LÓGICO
+# ============================================
+text_sensor:
+  # ============================================
+  # ESTADOS VICTRON MPPT
+  # ============================================
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT State"
+    type: DEVICE_STATE
+    
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Victron MPPT Error Reason"
+    type: CHARGER_ERROR
+  
+  # ============================================
+  # INFORMACIÓN DEL ESP32 (AL FINAL)
+  # ============================================
+  - platform: template
+    name: "ESP32 Uptime"
+    icon: mdi:clock-start
+    update_interval: 60s
+    lambda: |-
+      int seconds = (int)id(uptime_seconds).state;
+      int days = seconds / 86400;
+      int hours = (seconds % 86400) / 3600;
+      int minutes = (seconds % 3600) / 60;
+      int secs = seconds % 60;
+      
+      std::string result = "";
+      if (days > 0) result += to_string(days) + "d ";
+      if (hours > 0) result += to_string(hours) + "h ";
+      if (minutes > 0) result += to_string(minutes) + "m ";
+      result += to_string(secs) + "s";
+      
+      return result;
+  
+  - platform: template
+    name: "ESP32 Date"
+    icon: mdi:calendar-clock
+    update_interval: 60s
+    lambda: |-
+      auto time = id(sntp_time).now();
+      if (!time.is_valid()) {
+        return {"Syncing..."};
+      }
+      
+      int month = time.month;
+      int day = time.day_of_month;
+      int year = time.year;
+      int hour = time.hour;
+      int minute = time.minute;
+      
+      std::string am_pm = "am";
+      int hour_12 = hour;
+      
+      if (hour == 0) {
+        hour_12 = 12;
+      } else if (hour == 12) {
+        am_pm = "pm";
+      } else if (hour > 12) {
+        hour_12 = hour - 12;
+        am_pm = "pm";
+      }
+      
+      char buffer[30];
+      snprintf(buffer, sizeof(buffer), "%d/%d/%d %d:%02d %s", 
+               month, day, year, hour_12, minute, am_pm.c_str());
+      
+      return {buffer};
+  
+  - platform: wifi_info
+    ip_address:
+      name: "ESP32 IP Address"
+    ssid:
+      name: "ESP32 WiFi SSID"
+  
+  - platform: template
+    name: "ESP32 Config Version"
+    lambda: |-
+      return {"${version}"};

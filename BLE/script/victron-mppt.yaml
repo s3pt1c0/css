@@ -1,0 +1,104 @@
+substitutions:
+  name: victron-ble
+  device_description: "Monitor a Victron MPPT Charge Controller via BLE"
+  smart_solar_mac_address: 60:A4:23:91:8F:56
+  smart_solar_encryption_key: 0df4d0395b7d1a876c0c33ecb9e70aea
+
+esphome:
+  name: ${name}
+  comment: ${device_description}
+  friendly_name: victron_mppt
+
+external_components:
+  - source: github://Fabian-Schmidt/esphome-victron_ble
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+api:
+  encryption:
+    key: "fXi+MbBEylghmaKLe/MAKhXLaZmRG06Ct0HPWY++ZpI="
+
+ota:
+  - platform: esphome
+    password: "8a6bce13393a2c29616b290a0d020908"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+web_server:
+  port: 80
+  
+logger:
+  level: INFO
+  
+esp32_ble_tracker:
+
+victron_ble:
+  - id: MySmartSolar
+    mac_address: ${smart_solar_mac_address}
+    bindkey: ${smart_solar_encryption_key}
+
+sensor:
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Battery Voltage"
+    type: BATTERY_VOLTAGE
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Battery Current"
+    type: BATTERY_CURRENT
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Yield Today"
+    type: YIELD_TODAY
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "PV Power"
+    id: pv_power
+    type: PV_POWER
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "Load Current"
+    type: LOAD_CURRENT
+
+  - platform: integration
+    name: "Solar Energy Produced"
+    sensor: pv_power
+    unit_of_measurement: "Wh"
+    time_unit: h 
+    accuracy_decimals: 2
+    state_class: total_increasing
+    device_class: energy
+
+binary_sensor:
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "MPPT is in Fault state"
+    type: DEVICE_STATE_FAULT
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "MPPT has Error"
+    type: CHARGER_ERROR
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "MPPT in FLOAT"
+    id: mppt_in_float
+    type: DEVICE_STATE_FLOAT
+
+text_sensor:
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "MPPT state"
+    type: DEVICE_STATE
+  - platform: victron_ble
+    victron_ble_id: MySmartSolar
+    name: "MPPT Error reason"
+    type: CHARGER_ERROR  
+
+
+    
+    
