@@ -1,8 +1,8 @@
 substitutions:
   name: victron-esp32-direct
-  device_description: "Victron MPPT 150/45 via VE.Direct v1.2.7"
+  device_description: "Victron MPPT 150/45 via VE.Direct v1.3.4"
   friendly_name: "Victron"
-  version: "1.2.7"
+  version: "1.3.4"
 
 esphome:
   name: ${name}
@@ -71,37 +71,37 @@ victron:
 # SENSORS - ORGANIZED BY CATEGORY
 # ================================
 sensor:
-  # ========================================
-  # CATEGORÍA: ENERGY DASHBOARD (Principal)
-  # ========================================
-  
-  # POTENCIA INSTANTÁNEA (kW)
-  - platform: template
-    name: "Solar Power"
-    id: solar_power_kw
-    device_class: power
-    state_class: measurement
-    unit_of_measurement: "kW"
-    accuracy_decimals: 2
-    lambda: |-
-      if (id(panel_power).has_state()) {
-        return id(panel_power).state / 1000.0;
-      }
-      return 0.0;
-    update_interval: 10s
-
-  # ENERGÍA DEL DÍA (kWh) - Reset a medianoche
-  - platform: total_daily_energy
-    name: "Solar Energy Today"
-    id: solar_energy_today
-    power_id: panel_power
-    unit_of_measurement: "kWh"
-    device_class: energy
-    state_class: total_increasing
-    accuracy_decimals: 2
-    filters:
-      - multiply: 0.001
-
+# ========================================
+# CATEGORÍA: ENERGY DASHBOARD (Principal)
+# ========================================
+#  
+#  # POTENCIA INSTANTÁNEA (kW)
+#  - platform: template
+#    name: "Solar Power"
+#    id: solar_power_kw
+#    device_class: power
+#    state_class: measurement
+#    unit_of_measurement: "kW"
+#    accuracy_decimals: 2
+#    lambda: |-
+#      if (id(panel_power).has_state()) {
+#        return id(panel_power).state / 1000.0;
+#      }
+#      return 0.0;
+#    update_interval: 10s
+#
+#  # ENERGÍA DEL DÍA (kWh) - Reset a medianoche
+#  - platform: total_daily_energy
+#    name: "Solar Energy Today"
+#    id: solar_energy_today
+#    power_id: panel_power
+#    unit_of_measurement: "kWh"
+#    device_class: energy
+#    state_class: total_increasing
+#    accuracy_decimals: 2
+#    filters:
+#      - multiply: 0.001
+#
   # ====================
   # CATEGORÍA: BATTERY 
   # ====================
@@ -113,7 +113,7 @@ sensor:
       id: battery_voltage
       accuracy_decimals: 2
     battery_current:
-      name: "Battery Current"
+      name: "Battery Charge"
       id: battery_current
       accuracy_decimals: 2
 
@@ -124,15 +124,18 @@ sensor:
   - platform: victron
     victron_id: victron0
     panel_voltage:
-      name: "Panel Voltage"
+      name: "PV Voltage"
       id: panel_voltage
       accuracy_decimals: 2
     panel_power:
-      name: "Panel Power"
+      name: "PV Power"
       id: panel_power
+      device_class: power
+      state_class: measurement
+      unit_of_measurement: "W"
 
   - platform: template
-    name: "Panel Current"
+    name: "PV Current"
     id: panel_current
     device_class: current
     state_class: measurement
@@ -150,19 +153,19 @@ sensor:
   # CATEGORÍA: YIELD (Producción MPPT)
   # ===================================
   
+  # Sensores RAW internos (Victron envía en Wh)
   - platform: victron
     victron_id: victron0
     yield_today:
-      name: "Yield Today"
-      id: yield_today
+      name: "Yield Today Raw"
+      id: yield_today_raw
       accuracy_decimals: 2
+      internal: true
     yield_yesterday:
-      name: "Yield Yesterday"
-      id: yield_yesterday
+      name: "Yield Yesterday Raw"
+      id: yield_yesterday_raw
       accuracy_decimals: 2
-   #yield_total:
-   #  name: "Yield Total"
-   #  id: yield_total
+      internal: true
     max_power_today:
       name: "Max Power Today"
       id: max_power_today
@@ -172,6 +175,35 @@ sensor:
     day_number:
       name: "Day Number"
       id: day_number
+
+  # Sensores convertidos a kWh (dividiendo por 1000)
+  - platform: template
+    name: "Yield Today"
+    id: yield_today
+    unit_of_measurement: "kWh"
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 2
+    lambda: |-
+      if (id(yield_today_raw).has_state()) {
+        return id(yield_today_raw).state / 1000.0;
+      }
+      return 0.0;
+    update_interval: 10s
+
+  - platform: template
+    name: "Yield Yesterday"
+    id: yield_yesterday
+    unit_of_measurement: "kWh"
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 2
+    lambda: |-
+      if (id(yield_yesterday_raw).has_state()) {
+        return id(yield_yesterday_raw).state / 1000.0;
+      }
+      return 0.0;
+    update_interval: 10s
 
   # =======================
   # CATEGORÍA: DIAGNOSTIC 
@@ -190,10 +222,10 @@ sensor:
 # ===============
 # BINARY SENSORS
 # ===============
-binary_sensor:
-  - platform: status
-    name: "ESP32 Status"
-    entity_category: diagnostic
+#binary_sensor:
+#  - platform: status
+#    name: "ESP32 Status"
+#    entity_category: diagnostic
 
 # ============================================
 # TEXT SENSORS - ORGANIZED BY CATEGORY
@@ -294,7 +326,7 @@ text_sensor:
       entity_category: diagnostic
 
   - platform: template
-    name: "ESP32 Config Version"
+    name: "ESP32 Code Version"
     entity_category: diagnostic
     lambda: |-
       return {"${version}"};
