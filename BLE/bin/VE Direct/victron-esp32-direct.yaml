@@ -1,8 +1,8 @@
 substitutions:
-  name: victron-esp32-ve-direct
-  device_description: "Victron MPPT 150/45 via VE.Direct Serial v1.2.1"
-  friendly_name: "Victron ESP32 VE Direct"
-  version: "1.2.1"
+  name: victron-esp32-direct
+  device_description: "Victron MPPT 150/45 via VE.Direct v1.2.7"
+  friendly_name: "Victron"
+  version: "1.2.7"
 
 esphome:
   name: ${name}
@@ -16,7 +16,7 @@ esp32:
 
 logger:
   baud_rate: 0
-  level: DEBUG
+  level: INFO
 
 api:
   encryption:
@@ -36,7 +36,7 @@ wifi:
 
 # ============================================
 # NTP TIME SYNC - time.google.com AST -4
-# ============================================
+# ============================================  
 time:
   - platform: sntp
     id: sntp_time
@@ -44,14 +44,13 @@ time:
     servers:
       - time.google.com
       - pool.ntp.org
-      - time.cloudflare.com
     update_interval: 4h
     on_time_sync:
       then:
         - logger.log: "Time synchronized with NTP server"
- 
+
 # ============================================
-# VE.Direct UART Configuration
+# VE.Direct UART2 Configuration
 # ============================================
 uart:
   id: uart_0
@@ -68,123 +67,170 @@ victron:
   id: victron0
   uart_id: uart_0
 
-# ============================================
-# SENSORES NUMÉRICOS - ORDEN LÓGICO
-# ============================================
+# ================================
+# SENSORS - ORGANIZED BY CATEGORY
+# ================================
 sensor:
-  # ============================================
-  # BATERÍA
-  # ============================================
+  # ========================================
+  # CATEGORÍA: ENERGY DASHBOARD (Principal)
+  # ========================================
+  
+  # POTENCIA INSTANTÁNEA (kW)
+  - platform: template
+    name: "Solar Power"
+    id: solar_power_kw
+    device_class: power
+    state_class: measurement
+    unit_of_measurement: "kW"
+    accuracy_decimals: 2
+    lambda: |-
+      if (id(panel_power).has_state()) {
+        return id(panel_power).state / 1000.0;
+      }
+      return 0.0;
+    update_interval: 10s
+
+  # ENERGÍA DEL DÍA (kWh) - Reset a medianoche
+  - platform: total_daily_energy
+    name: "Solar Energy Today"
+    id: solar_energy_today
+    power_id: panel_power
+    unit_of_measurement: "kWh"
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.001
+
+  # ====================
+  # CATEGORÍA: BATTERY 
+  # ====================
+  
   - platform: victron
     victron_id: victron0
     battery_voltage:
-      name: "${friendly_name} Battery Voltage"
+      name: "Battery Voltage"
       id: battery_voltage
+      accuracy_decimals: 2
     battery_current:
-      name: "${friendly_name} Battery Current"
+      name: "Battery Current"
       id: battery_current
+      accuracy_decimals: 2
+
+  # ========================
+  # CATEGORÍA: SOLAR PANELS 
+  # ========================
   
-  # ============================================
-  # PANELES SOLARES (PV)
-  # ============================================
   - platform: victron
     victron_id: victron0
     panel_voltage:
-      name: "${friendly_name} Panel Voltage"
+      name: "Panel Voltage"
       id: panel_voltage
+      accuracy_decimals: 2
     panel_power:
-      name: "${friendly_name} Panel Power"
+      name: "Panel Power"
       id: panel_power
-  
+
   - platform: template
-    name: "${friendly_name} Panel Current"
+    name: "Panel Current"
     id: panel_current
     device_class: current
     state_class: measurement
     unit_of_measurement: "A"
     accuracy_decimals: 2
     lambda: |-
-      if (id(panel_voltage).has_state() && id(panel_voltage).state > 0 && 
+      if (id(panel_voltage).has_state() && id(panel_voltage).state > 0 &&
           id(panel_power).has_state() && id(panel_power).state > 0) {
         return id(panel_power).state / id(panel_voltage).state;
       }
       return 0.0;
     update_interval: 10s
+
+  # ===================================
+  # CATEGORÍA: YIELD (Producción MPPT)
+  # ===================================
   
-  # ============================================
-  # PRODUCCIÓN DE ENERGÍA
-  # ============================================
   - platform: victron
     victron_id: victron0
     yield_today:
-      name: "${friendly_name} Yield Today"
+      name: "Yield Today"
       id: yield_today
+      accuracy_decimals: 2
     yield_yesterday:
-      name: "${friendly_name} Yield Yesterday"
+      name: "Yield Yesterday"
       id: yield_yesterday
-    yield_total:
-      name: "${friendly_name} Yield Total"
-      id: yield_total
+      accuracy_decimals: 2
+   #yield_total:
+   #  name: "Yield Total"
+   #  id: yield_total
     max_power_today:
-      name: "${friendly_name} Max Power Today"
+      name: "Max Power Today"
       id: max_power_today
     max_power_yesterday:
-      name: "${friendly_name} Max Power Yesterday"
+      name: "Max Power Yesterday"
       id: max_power_yesterday
     day_number:
-      name: "${friendly_name} Day Number"
+      name: "Day Number"
       id: day_number
-  
-  # ============================================
-  # INFORMACIÓN DEL ESP32 (AL FINAL)
-  # ============================================
-  - platform: wifi_signal
-    name: "${friendly_name} WiFi Signal"
-    update_interval: 60s
+
+  # =======================
+  # CATEGORÍA: DIAGNOSTIC 
+  # =======================
   
   - platform: uptime
     id: uptime_seconds
     internal: true
     update_interval: 60s
 
-# ============================================
-# SENSORES BINARIOS
-# ============================================
+  - platform: wifi_signal
+    name: "ESP32 WiFi Signal"
+    entity_category: diagnostic
+    update_interval: 60s
+
+# ===============
+# BINARY SENSORS
+# ===============
 binary_sensor:
   - platform: status
-    name: "${friendly_name} Status"
+    name: "ESP32 Status"
+    entity_category: diagnostic
 
 # ============================================
-# SENSORES DE TEXTO - ORDEN LÓGICO
+# TEXT SENSORS - ORGANIZED BY CATEGORY
 # ============================================
 text_sensor:
-  # ============================================
-  # ESTADOS VICTRON MPPT
-  # ============================================
+  # =======================
+  # CATEGORÍA: MPPT STATUS
+  # =======================
+  
   - platform: victron
     victron_id: victron0
     charging_mode:
-      name: "${friendly_name} Charging Mode"
+      name: "Charging Mode"
       id: charging_mode
     error:
-      name: "${friendly_name} Error"
+      name: "Error"
       id: error
     tracking_mode:
-      name: "${friendly_name} Tracking Mode"
+      name: "Tracking Mode"
       id: tracking_mode
     firmware_version:
-      name: "${friendly_name} Firmware Version"
+      name: "Firmware Version"
       id: firmware_version
+      entity_category: diagnostic
     serial_number:
-      name: "${friendly_name} Serial Number"
+      name: "Serial Number"
       id: serial_number
+      entity_category: diagnostic
+
+  # =======================
+  # CATEGORÍA: DIAGNOSTIC 
+  # =======================
   
-  # ============================================
-  # INFORMACIÓN DEL ESP32 (AL FINAL)
-  # ============================================
   - platform: template
-    name: "${friendly_name} Uptime"
+    name: "ESP32 Uptime"
     icon: mdi:clock-start
+    entity_category: diagnostic
     update_interval: 60s
     lambda: |-
       int seconds = (int)id(uptime_seconds).state;
@@ -192,34 +238,35 @@ text_sensor:
       int hours = (seconds % 86400) / 3600;
       int minutes = (seconds % 3600) / 60;
       int secs = seconds % 60;
-      
+
       std::string result = "";
       if (days > 0) result += to_string(days) + "d ";
       if (hours > 0) result += to_string(hours) + "h ";
       if (minutes > 0) result += to_string(minutes) + "m ";
       result += to_string(secs) + "s";
-      
+
       return result;
-  
+
   - platform: template
-    name: "${friendly_name} ESP32 Date"
+    name: "ESP32 Date"
     icon: mdi:calendar-clock
+    entity_category: diagnostic
     update_interval: 60s
     lambda: |-
       auto time = id(sntp_time).now();
       if (!time.is_valid()) {
         return {"Syncing..."};
       }
-      
+
       int month = time.month;
       int day = time.day_of_month;
       int year = time.year;
       int hour = time.hour;
       int minute = time.minute;
-      
+
       std::string am_pm = "am";
       int hour_12 = hour;
-      
+
       if (hour == 0) {
         hour_12 = 12;
       } else if (hour == 12) {
@@ -228,25 +275,26 @@ text_sensor:
         hour_12 = hour - 12;
         am_pm = "pm";
       }
-      
+
       char buffer[30];
-      snprintf(buffer, sizeof(buffer), "%d/%d/%d %d:%02d %s", 
+      snprintf(buffer, sizeof(buffer), "%d/%d/%d %d:%02d %s",
                month, day, year, hour_12, minute, am_pm.c_str());
-      
+
       return {buffer};
-  
+
   - platform: wifi_info
     ip_address:
-      name: "${friendly_name} IP Address"
+      name: "ESP32 IP Address"
+      entity_category: diagnostic
     ssid:
-      name: "${friendly_name} WiFi SSID"
+      name: "ESP32 WiFi SSID"
+      entity_category: diagnostic
     mac_address:
-      name: "${friendly_name} MAC Address"
-  
-  - platform: version
-    name: "${friendly_name} ESPHome Version"
-  
+      name: "ESP32 MAC Address"
+      entity_category: diagnostic
+
   - platform: template
-    name: "${friendly_name} Config Version"
+    name: "ESP32 Config Version"
+    entity_category: diagnostic
     lambda: |-
       return {"${version}"};

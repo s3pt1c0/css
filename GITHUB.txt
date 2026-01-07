@@ -1,0 +1,6 @@
+
+https://github.com/pmcg31/esp32_victron_test
+https://github.com/hoberman/Victron_BLE_Advertising_example/tree/main
+https://github.com/KinDR007/VictronMPPT-ESPHOME
+
+

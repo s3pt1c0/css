@@ -1,9 +1,9 @@
 substitutions:
   name: victron-ble
-  device_description: "Monitor a Victron MPPT Charge Controller via BLE v1.2.1"
+  device_description: "Monitor a Victron MPPT Charge Controller via BLE v1.2.2"
   smart_solar_mac_address: cd:ac:27:2c:7d:41
   friendly_name: "Victron ESP32 BLE"
-  version: "1.2.1"
+  version: "1.2.2"
   smart_solar_encryption_key: 64ca1f66c38f5d108e03b8b1ba4482d1
 
 esphome:
