@@ -1,8 +1,8 @@
 substitutions:
-  name: victron-esp32-direct
-  device_description: "⚠️Victron MPPT 150/45 via VE.Direct⚠️"
-  friendly_name: "Victron"
-  version: "1.3.6"
+  name: victron-ambient
+  device_description: "⚡️Victron MPPT 150/45 + Temp Sensor⚡️"
+  friendly_name: "Victron-Ambient"
+  version: "2.0.0"
 
 esphome:
   name: ${name}
@@ -12,7 +12,7 @@ esphome:
 esp32:
   board: esp32dev
   framework:
-    type: esp-idf
+    type: arduino
 
 logger:
   baud_rate: 0
@@ -29,6 +29,7 @@ ota:
 
 web_server:
   port: 80
+  version: 3
 
 wifi:
   ssid: !secret wifi_ssid
@@ -48,6 +49,14 @@ time:
     on_time_sync:
       then:
         - logger.log: "Time synchronized with NTP server"
+
+# ============================================
+# I2C Configuration for BME280
+# ============================================
+i2c:
+  sda: 21
+  scl: 22
+  scan: true
 
 # ============================================
 # VE.Direct UART2 Configuration
@@ -71,37 +80,26 @@ victron:
 # SENSORS - ORGANIZED BY CATEGORY
 # ================================
 sensor:
-# ========================================
-# CATEGORÍA: ENERGY DASHBOARD (Principal)
-# ========================================
-#  
-#  # POTENCIA INSTANTÁNEA (kW)
-#  - platform: template
-#    name: "Solar Power"
-#    id: solar_power_kw
-#    device_class: power
-#    state_class: measurement
-#    unit_of_measurement: "kW"
-#    accuracy_decimals: 2
-#    lambda: |-
-#      if (id(panel_power).has_state()) {
-#        return id(panel_power).state / 1000.0;
-#      }
-#      return 0.0;
-#    update_interval: 10s
-#
-#  # ENERGÍA DEL DÍA (kWh) - Reset a medianoche
-#  - platform: total_daily_energy
-#    name: "Solar Energy Today"
-#    id: solar_energy_today
-#    power_id: panel_power
-#    unit_of_measurement: "kWh"
-#    device_class: energy
-#    state_class: total_increasing
-#    accuracy_decimals: 2
-#    filters:
-#      - multiply: 0.001
-#
+  # =============================
+  # CATEGORÍA: AMBIENTE (BME280)
+  # =============================
+  
+  - platform: bme280_i2c
+    temperature:
+      name: "Temperatura Ambiente"
+      unit_of_measurement: "°F"
+      filters:
+        - lambda: return x * 9.0 / 5.0 + 32.0;
+    pressure:
+      name: "Presión Atmosférica"
+      unit_of_measurement: "inHg"
+      filters:
+        - lambda: return x * 0.02953;
+    humidity:
+      name: "Humedad Ambiente"
+    address: 0x76
+    update_interval: 60s
+
   # ====================
   # CATEGORÍA: BATTERY 
   # ====================
@@ -109,7 +107,7 @@ sensor:
   - platform: victron
     victron_id: victron0
     battery_voltage:
-      name: "Battery Voltage🔋⚠️"
+      name: "Battery Voltage🔋⚡️"
       id: battery_voltage
       accuracy_decimals: 2
     battery_current:
@@ -124,7 +122,7 @@ sensor:
   - platform: victron
     victron_id: victron0
     panel_voltage:
-      name: "PV Voltage🔆⚠️"
+      name: "PV Voltage🔆⚡️"
       id: panel_voltage
       accuracy_decimals: 2
     panel_power:
@@ -135,7 +133,7 @@ sensor:
       unit_of_measurement: "W"
 
   - platform: template
-    name: "PV Current🔆⚡︎"
+    name: "PV Current🔆⚡️"
     id: panel_current
     device_class: current
     state_class: measurement
@@ -219,14 +217,6 @@ sensor:
     entity_category: diagnostic
     update_interval: 60s
 
-# ===============
-# BINARY SENSORS
-# ===============
-#binary_sensor:
-#  - platform: status
-#    name: "ESP32 Status"
-#    entity_category: diagnostic
-
 # ============================================
 # TEXT SENSORS - ORGANIZED BY CATEGORY
 # ============================================
@@ -241,10 +231,10 @@ text_sensor:
       name: "Charging Mode 🚥"
       id: charging_mode
     error:
-      name: "Error❌"
+      name: "Error⚠️"
       id: error
     tracking_mode:
-      name: "Tracking Mode📡"
+      name: "Tracking Mode🔡"
       id: tracking_mode
     firmware_version:
       name: "MPPT Firmware 🛠"
@@ -260,7 +250,7 @@ text_sensor:
   # =======================
   
   - platform: template
-    name: "ESP32 Uptime🕓"
+    name: "ESP32 Uptime🕑"
     icon: mdi:clock-start
     entity_category: diagnostic
     update_interval: 60s
@@ -313,17 +303,6 @@ text_sensor:
                month, day, year, hour_12, minute, am_pm.c_str());
 
       return {buffer};
-
-#  - platform: wifi_info
-#    ip_address:
-#     name: "ESP32 IP Address"
-#      entity_category: diagnostic
-#    ssid:
-#      name: "ESP32 WiFi SSID"
-#      entity_category: diagnostic
-#    mac_address:
-#      name: "ESP32 MAC Address"
-#      entity_category: diagnostic
 
   - platform: template
     name: "ESP32 Code Version⚙️"

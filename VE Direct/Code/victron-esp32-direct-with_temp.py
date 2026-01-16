@@ -1,8 +1,8 @@
 substitutions:
   name: victron-esp32-direct
-  device_description: "⚠️Victron MPPT 150/45 via VE.Direct⚠️"
+  device_description: "Victron MPPT 150/45 via VE.Direct"
   friendly_name: "Victron"
-  version: "1.3.6"
+  version: "1.3.5"
 
 esphome:
   name: ${name}
@@ -109,11 +109,11 @@ sensor:
   - platform: victron
     victron_id: victron0
     battery_voltage:
-      name: "Battery Voltage🔋⚠️"
+      name: "Battery Voltage"
       id: battery_voltage
       accuracy_decimals: 2
     battery_current:
-      name: "Battery Charge🔋🔌"
+      name: "Battery Charge"
       id: battery_current
       accuracy_decimals: 2
 
@@ -124,18 +124,18 @@ sensor:
   - platform: victron
     victron_id: victron0
     panel_voltage:
-      name: "PV Voltage🔆⚠️"
+      name: "PV Voltage"
       id: panel_voltage
       accuracy_decimals: 2
     panel_power:
-      name: "PV Power🔆⚡"
+      name: "PV Power"
       id: panel_power
       device_class: power
       state_class: measurement
       unit_of_measurement: "W"
 
   - platform: template
-    name: "PV Current🔆⚡︎"
+    name: "PV Current"
     id: panel_current
     device_class: current
     state_class: measurement
@@ -215,7 +215,7 @@ sensor:
     update_interval: 60s
 
   - platform: wifi_signal
-    name: "ESP32 WiFi Signal🛜"
+    name: "ESP32 WiFi Signal"
     entity_category: diagnostic
     update_interval: 60s
 
@@ -238,20 +238,20 @@ text_sensor:
   - platform: victron
     victron_id: victron0
     charging_mode:
-      name: "Charging Mode 🚥"
+      name: "Charging Mode"
       id: charging_mode
     error:
-      name: "Error❌"
+      name: "Error"
       id: error
     tracking_mode:
-      name: "Tracking Mode📡"
+      name: "Tracking Mode"
       id: tracking_mode
     firmware_version:
-      name: "MPPT Firmware 🛠"
+      name: "FW Ver"
       id: firmware_version
       entity_category: diagnostic
     serial_number:
-      name: "Serial Number 🔢#️⃣"
+      name: "Serial Number"
       id: serial_number
       entity_category: diagnostic
 
@@ -260,7 +260,7 @@ text_sensor:
   # =======================
   
   - platform: template
-    name: "ESP32 Uptime🕓"
+    name: "ESP32 Uptime"
     icon: mdi:clock-start
     entity_category: diagnostic
     update_interval: 60s
@@ -280,7 +280,7 @@ text_sensor:
       return result;
 
   - platform: template
-    name: "ESP32 Date🗓️"
+    name: "ESP32 Date"
     icon: mdi:calendar-clock
     entity_category: diagnostic
     update_interval: 60s
@@ -326,7 +326,7 @@ text_sensor:
 #      entity_category: diagnostic
 
   - platform: template
-    name: "ESP32 Code Version⚙️"
+    name: "ESP32 Code Version"
     entity_category: diagnostic
     lambda: |-
       return {"${version}"};
